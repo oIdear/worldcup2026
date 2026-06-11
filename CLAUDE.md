@@ -2,6 +2,43 @@
 
 四个主流大模型（Claude / DeepSeek / 豆包 / ChatGPT）各持 1000 虚拟币，全程自动押注竞彩足球胜平负，世界杯结束后比较最终余额。
 
+## 启动步骤
+
+**首次运行：**
+
+```bash
+# 1. 安装依赖
+pip install -r requirements.txt
+
+# 2. 配置 API Key（复制后填入真实值）
+copy .env.example .env
+
+# 3. 同步赛程（104场，自动转为北京时间）
+python main.py sync
+
+# 4. 录入即将开赛的比赛赔率（去 sporttery.cn 查询）
+python main.py matches                                    # 找到比赛代码
+python main.py update_odds WC2026_001 1.43 4.32 8.11     # 录入赔率
+
+# 5. 启动（两个终端分别运行）
+python main.py run           # 终端1：调度器，自动下注+结算
+python main.py dashboard     # 终端2：排行榜 http://localhost:5000
+```
+
+**日常操作（每场比赛）：**
+
+```bash
+# 比赛前：录入赔率（12小时内调度器自动触发下注）
+python main.py update_odds <match_code> <主胜赔率> <平局赔率> <客胜赔率>
+
+# 比赛后：录入结果
+python main.py settle <match_code> home   # 主队赢
+python main.py settle <match_code> draw   # 平局
+python main.py settle <match_code> away   # 客队赢
+```
+
+---
+
 ## 常用命令
 
 ```bash
@@ -23,7 +60,7 @@ worldcup2026/
 ├── database.py             # SQLite 读写：赛程、下注记录、余额
 ├── main.py                 # CLI 入口，分发所有子命令
 ├── odds/
-│   └── fetcher.py          # 竞彩赔率抓取（API → HTML 双路 fallback）
+│   └── fetcher.py          # 赛程抓取（openfootball GitHub，无需 Key）
 ├── agents/
 │   ├── base_agent.py       # 公共 Prompt 模板 + JSON 响应解析
 │   ├── claude_agent.py     # Anthropic SDK
