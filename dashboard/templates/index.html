@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 世界杯 AI 押注大战</title>
+<meta http-equiv="refresh" content="60">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #0a0e1a; color: #e8eaf0; min-height: 100vh; }
+
+  .header { background: linear-gradient(135deg, #1a1f3a 0%, #0d1224 100%); padding: 24px 32px; border-bottom: 1px solid #2a3050; }
+  .header h1 { font-size: 1.8rem; font-weight: 700; color: #fff; }
+  .header h1 span { color: #f5a623; }
+  .header .subtitle { color: #7a8099; font-size: 0.9rem; margin-top: 4px; }
+  .header .meta { display: flex; gap: 24px; margin-top: 12px; }
+  .header .meta span { font-size: 0.85rem; color: #9ba3bf; }
+  .header .meta strong { color: #e8eaf0; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  /* 排行榜 */
+  .leaderboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 40px; }
+
+  .card { background: #12172e; border: 1px solid #1e2640; border-radius: 12px; padding: 20px; position: relative; overflow: hidden; transition: transform 0.2s; }
+  .card:hover { transform: translateY(-2px); }
+  .card.rank-1 { border-color: #f5a623; background: linear-gradient(135deg, #1a1505 0%, #12172e 60%); }
+  .card.rank-2 { border-color: #8c9db5; }
+  .card.rank-3 { border-color: #c87532; }
+  .card.eliminated { opacity: 0.45; filter: grayscale(0.6); }
+
+  .rank-badge { position: absolute; top: 12px; right: 12px; font-size: 1.4rem; font-weight: 900; opacity: 0.18; }
+  .card.rank-1 .rank-badge { color: #f5a623; opacity: 0.5; }
+
+  .model-name { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+  .balance { font-size: 2rem; font-weight: 800; margin-bottom: 12px; }
+  .card.rank-1 .balance { color: #f5a623; }
+  .card.eliminated .balance { color: #5a5f70; }
+
+  .stats-row { display: flex; gap: 16px; font-size: 0.8rem; color: #7a8099; }
+  .stats-row .stat { display: flex; flex-direction: column; }
+  .stats-row .stat strong { color: #c0c6d8; font-size: 0.95rem; }
+
+  .profit { font-size: 0.85rem; font-weight: 600; margin-top: 10px; }
+  .profit.pos { color: #4caf85; }
+  .profit.neg { color: #e05050; }
+  .profit.zero { color: #7a8099; }
+
+  .eliminated-badge { display: inline-block; background: #3a1515; color: #e05050; font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-top: 8px; }
+
+  /* 最近下注记录 */
+  .section-title { font-size: 1.1rem; font-weight: 700; color: #c0c6d8; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #1e2640; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; color: #7a8099; font-weight: 600; padding: 8px 12px; border-bottom: 1px solid #1e2640; }
+  td { padding: 10px 12px; border-bottom: 1px solid #141928; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #141928; }
+
+  .bet-won  { color: #4caf85; font-weight: 600; }
+  .bet-lost { color: #e05050; }
+  .bet-pending { color: #7a8099; }
+  .bet-home { background: #1a2a1a; color: #4caf85; }
+  .bet-draw { background: #1a1a2a; color: #7ba8e0; }
+  .bet-away { background: #2a1a1a; color: #e07a7a; }
+  .bet-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+
+  .win-rate-bar { width: 100%; height: 4px; background: #1e2640; border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .win-rate-fill { height: 100%; background: #4caf85; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚽ 2026 世界杯 <span>AI 押注大战</span></h1>
+  <div class="subtitle">Claude · DeepSeek · 豆包 · ChatGPT — 谁是最强足球分析师？</div>
+  <div class="meta">
+    <span>总场次 <strong>{{ total_matches }}</strong></span>
+    <span>已结算 <strong>{{ finished_matches }}</strong></span>
+    <span>待开赛 <strong>{{ pending_matches }}</strong></span>
+    <span style="margin-left: auto; color: #4a5268;">每60秒自动刷新</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- 排行榜 -->
+  <div class="leaderboard">
+    {% for b in balances %}
+    {% set rank = loop.index %}
+    {% set profit = b.balance - 1000 %}
+    <div class="card {% if rank <= 3 %}rank-{{ rank }}{% endif %} {% if b.is_eliminated %}eliminated{% endif %}">
+      <div class="rank-badge">#{{ rank }}</div>
+      <div class="model-name">{{ b.model_name }}</div>
+      <div class="balance">{{ b.balance | int }} <small style="font-size:0.9rem;color:#7a8099">虚拟币</small></div>
+
+      <div class="stats-row">
+        <div class="stat"><strong>{{ b.total_bets }}</strong>下注</div>
+        <div class="stat"><strong>{{ b.wins }}</strong>胜</div>
+        <div class="stat"><strong>{{ b.losses }}</strong>负</div>
+        <div class="stat"><strong>{{ b.max_consecutive_wins }}</strong>连胜</div>
+      </div>
+
+      {% if b.total_bets > 0 %}
+      <div class="win-rate-bar">
+        <div class="win-rate-fill" style="width: {{ (b.wins / b.total_bets * 100) | int }}%"></div>
+      </div>
+      {% endif %}
+
+      <div class="profit {{ 'pos' if profit > 0 else ('neg' if profit < 0 else 'zero') }}">
+        {{ '+' if profit > 0 else '' }}{{ profit | int }} 虚拟币
+        （{{ '+' if profit > 0 else '' }}{{ ((profit / 1000) * 100) | round(1) }}%）
+      </div>
+
+      {% if b.is_eliminated %}
+      <div class="eliminated-badge">已出局</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- 最近下注记录 -->
+  <div class="section-title">最近下注记录</div>
+  <table>
+    <thead>
+      <tr>
+        <th>模型</th>
+        <th>比赛</th>
+        <th>押注</th>
+        <th>金额</th>
+        <th>赔率</th>
+        <th>盈亏</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in recent_bets %}
+      <tr>
+        <td>{{ b.model_name }}</td>
+        <td style="color:#c0c6d8">{{ b.home_team }} vs {{ b.away_team }}</td>
+        <td>
+          {% if b.bet_on == 'home' %}
+          <span class="bet-tag bet-home">主胜</span>
+          {% elif b.bet_on == 'draw' %}
+          <span class="bet-tag bet-draw">平局</span>
+          {% else %}
+          <span class="bet-tag bet-away">客胜</span>
+          {% endif %}
+        </td>
+        <td>{{ b.amount }}</td>
+        <td style="color:#9ba3bf">{{ b.odds_at_bet }}</td>
+        <td>
+          {% if b.is_settled %}
+            {% if b.profit_loss > 0 %}
+            <span class="bet-won">+{{ b.profit_loss | round(1) }}</span>
+            {% else %}
+            <span class="bet-lost">{{ b.profit_loss | round(1) }}</span>
+            {% endif %}
+          {% else %}
+          <span class="bet-pending">待结算</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+</div>
+</body>
+</html>
