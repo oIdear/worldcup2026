@@ -36,4 +36,17 @@ SPORTTERY_HEADERS = {
     "Accept-Language": "zh-CN,zh;q=0.9",
 }
 
-MODELS = ["Claude", "DeepSeek", "豆包", "ChatGPT"]
+def _active_models() -> list[str]:
+    """只将已配置 API Key 的模型纳入竞赛。"""
+    active = []
+    if ANTHROPIC_API_KEY and not ANTHROPIC_API_KEY.startswith("your_"):
+        active.append("Claude")
+    if DEEPSEEK_API_KEY and not DEEPSEEK_API_KEY.startswith("your_"):
+        active.append("DeepSeek")
+    if DOUBAO_API_KEY and not DOUBAO_API_KEY.startswith("your_"):
+        active.append("豆包")
+    if OPENAI_API_KEY and not OPENAI_API_KEY.startswith("your_"):
+        active.append("ChatGPT")
+    return active
+
+MODELS = _active_models()
