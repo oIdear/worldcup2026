@@ -21,11 +21,11 @@ OPENFOOTBALL_URL = (
 # UTC+8 北京时间偏移
 CST = timezone(timedelta(hours=8))
 
-# UTC 偏移字符串 → 小时数
+# UTC 偏移字符串 → 小时数（按长度降序排列，避免 "UTC" 匹配 "UTC-6" 的子串）
 _UTC_OFFSET = {
-    "UTC-6": -6, "UTC-5": -5, "UTC-4": -4, "UTC-3": -3,
-    "UTC+0": 0,  "UTC":   0,
-    "UTC+1": 1,  "UTC+8": 8,
+    "UTC-8": -8, "UTC-7": -7, "UTC-6": -6, "UTC-5": -5,
+    "UTC-4": -4, "UTC-3": -3, "UTC+0": 0,  "UTC+1": 1,
+    "UTC+8": 8,  "UTC": 0,
 }
 
 
@@ -43,31 +43,29 @@ def fetch_schedule() -> list[dict]:
 
 def _parse_openfootball(data: dict) -> list[dict]:
     matches = []
-    # 数据结构：{"rounds": [{"name": "...", "matches": [...]}]}
-    rounds = data.get("rounds", [])
-    seq = 1
-    for rd in rounds:
-        round_name = rd.get("name", "世界杯")
-        for m in rd.get("matches", []):
-            try:
-                t1 = m.get("team1", {})
-                t2 = m.get("team2", {})
-                home = t1.get("name") or t1 if isinstance(t1, str) else str(t1)
-                away = t2.get("name") or t2 if isinstance(t2, str) else str(t2)
-                kickoff = _to_cst(m.get("date", ""), m.get("time", ""))
-                matches.append({
-                    "match_code":   f"WC2026_{seq:03d}",
-                    "home_team":    home,
-                    "away_team":    away,
-                    "kickoff_time": kickoff,
-                    "round":        round_name,
-                    "home_odds":    0.0,
-                    "draw_odds":    0.0,
-                    "away_odds":    0.0,
-                })
-                seq += 1
-            except Exception as e:
-                logger.debug("Skip match: %s | %s", m, e)
+    # 实际结构：{"name": "World Cup 2026", "matches": [...]}
+    # 每条 match：{"round": "Matchday 1", "date": "2026-06-11",
+    #              "time": "13:00 UTC-6", "team1": "Mexico", "team2": "South Africa", ...}
+    items = data.get("matches", [])
+    for seq, m in enumerate(items, 1):
+        try:
+            t1 = m.get("team1", "")
+            t2 = m.get("team2", "")
+            home = t1 if isinstance(t1, str) else t1.get("name", str(t1))
+            away = t2 if isinstance(t2, str) else t2.get("name", str(t2))
+            kickoff = _to_cst(m.get("date", ""), m.get("time", ""))
+            matches.append({
+                "match_code":   f"WC2026_{seq:03d}",
+                "home_team":    home,
+                "away_team":    away,
+                "kickoff_time": kickoff,
+                "round":        m.get("round", "世界杯"),
+                "home_odds":    0.0,
+                "draw_odds":    0.0,
+                "away_odds":    0.0,
+            })
+        except Exception as e:
+            logger.debug("Skip match: %s | %s", m, e)
     logger.info("Parsed %d matches from openfootball", len(matches))
     return matches
 
