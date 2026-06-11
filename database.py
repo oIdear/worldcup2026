@@ -107,6 +107,7 @@ def get_unbet_matches_within(hours: int) -> list[dict]:
             SELECT m.*
             FROM matches m
             WHERE m.status = 'pending'
+              AND m.home_odds > 0
               AND datetime(m.kickoff_time) <= datetime('now', ? || ' hours')
               AND datetime(m.kickoff_time) > datetime('now')
             ORDER BY m.kickoff_time

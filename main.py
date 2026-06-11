@@ -2,13 +2,14 @@
 世界杯 AI 押注大战 — 主入口
 
 用法：
-  python main.py run         # 启动定时调度器（正式运行）
-  python main.py dashboard   # 仅启动排行榜网页（http://localhost:5000）
-  python main.py sync        # 手动同步一次赛程+赔率
-  python main.py bet <match_code>         # 手动触发单场下注
-  python main.py settle <match_code> <home|draw|away>  # 手动结算单场
-  python main.py status      # 打印当前余额排名
-  python main.py add_match   # 手动添加一场比赛（无法抓取时使用）
+  python main.py run                                  # 启动定时调度器（正式运行）
+  python main.py dashboard                            # 排行榜网页 http://localhost:5000
+  python main.py sync                                 # 从 openfootball 同步完整赛程
+  python main.py matches                              # 列出所有比赛（含赔率状态）
+  python main.py update_odds <match_code> <主胜> <平局> <客胜>  # 录入竞彩赔率
+  python main.py bet <match_code>                     # 手动触发单场 AI 下注
+  python main.py settle <match_code> <home|draw|away> # 手动结算单场
+  python main.py status                               # 打印当前余额排名
 """
 
 import sys
@@ -34,12 +35,56 @@ def cmd_dashboard():
 
 
 def cmd_sync():
-    from odds.fetcher import fetch_matches
+    """从 openfootball 拉取完整世界杯赛程（不覆盖已有赔率）。"""
+    from odds.fetcher import fetch_schedule
     from database import upsert_match
-    matches = fetch_matches()
+    matches = fetch_schedule()
     for m in matches:
         upsert_match(m)
     print(f"同步完成，共 {len(matches)} 场赛事。")
+    print("提示：赛程已导入，请用 update_odds 命令补录各场竞彩赔率。")
+
+
+def cmd_matches():
+    """列出所有比赛，标注赔率是否已录入。"""
+    from database import get_conn
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM matches ORDER BY kickoff_time"
+        ).fetchall()
+    if not rows:
+        print("暂无赛事，请先执行 python main.py sync")
+        return
+    print(f"\n{'代码':<14} {'主队':<20} {'客队':<20} {'开赛时间':<20} {'赔率'}")
+    print("-" * 90)
+    for r in rows:
+        has_odds = r["home_odds"] and r["home_odds"] > 0
+        odds_str = f"{r['home_odds']:.2f}/{r['draw_odds']:.2f}/{r['away_odds']:.2f}" if has_odds else "待录入"
+        status = "✓" if r["status"] == "finished" else ("📋" if has_odds else "❌")
+        print(f"{status} {r['match_code']:<13} {r['home_team']:<20} {r['away_team']:<20} "
+              f"{r['kickoff_time']:<20} {odds_str}")
+    print()
+
+
+def cmd_update_odds(match_code: str, home: str, draw: str, away: str):
+    """录入指定比赛的竞彩赔率。"""
+    from database import get_conn
+    home_odds, draw_odds, away_odds = float(home), float(draw), float(away)
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT match_code, home_team, away_team FROM matches WHERE match_code = ?",
+            (match_code,)
+        ).fetchone()
+        if not row:
+            print(f"找不到比赛 {match_code}，请先执行 sync 或确认代码是否正确。")
+            return
+        conn.execute(
+            "UPDATE matches SET home_odds=?, draw_odds=?, away_odds=? WHERE match_code=?",
+            (home_odds, draw_odds, away_odds, match_code)
+        )
+        conn.commit()
+    print(f"赔率已更新：{row['home_team']} vs {row['away_team']}  "
+          f"主胜 {home_odds} | 平局 {draw_odds} | 客胜 {away_odds}")
 
 
 def cmd_bet(match_code: str):
@@ -50,9 +95,13 @@ def cmd_bet(match_code: str):
             "SELECT * FROM matches WHERE match_code = ?", (match_code,)
         ).fetchone()
     if not row:
-        print(f"找不到赛事 {match_code}，请先 sync 或 add_match。")
+        print(f"找不到赛事 {match_code}。")
         return
-    run_bets_for_match(dict(row))
+    row = dict(row)
+    if not row.get("home_odds"):
+        print(f"赛事 {match_code} 尚未录入赔率，请先执行 update_odds。")
+        return
+    run_bets_for_match(row)
     print("下注完成。")
 
 
@@ -78,31 +127,13 @@ def cmd_status():
     print()
 
 
-def cmd_add_match():
-    print("手动添加比赛（用于竞彩接口无法获取时）")
-    match = {
-        "match_code":   input("比赛代码（唯一ID，如 WC2026_001）: ").strip(),
-        "home_team":    input("主队名称: ").strip(),
-        "away_team":    input("客队名称: ").strip(),
-        "kickoff_time": input("开赛时间（格式 2026-06-12 22:00:00）: ").strip(),
-        "round":        input("赛事阶段（如 小组赛A组）: ").strip(),
-        "home_odds":    float(input("主胜赔率: ").strip()),
-        "draw_odds":    float(input("平局赔率: ").strip()),
-        "away_odds":    float(input("客胜赔率: ").strip()),
-    }
-    from database import upsert_match
-    upsert_match(match)
-    print(f"已添加：{match['home_team']} vs {match['away_team']}")
-
-
 COMMANDS = {
-    "run":       cmd_run,
-    "dashboard": cmd_dashboard,
-    "sync":      cmd_sync,
-    "status":    cmd_status,
-    "add_match": cmd_add_match,
+    "run":        cmd_run,
+    "dashboard":  cmd_dashboard,
+    "sync":       cmd_sync,
+    "matches":    cmd_matches,
+    "status":     cmd_status,
 }
-
 
 if __name__ == "__main__":
     init_db()
@@ -114,13 +145,15 @@ if __name__ == "__main__":
 
     cmd = args[0]
 
-    if cmd == "bet" and len(args) >= 2:
+    if cmd == "update_odds" and len(args) == 5:
+        cmd_update_odds(args[1], args[2], args[3], args[4])
+    elif cmd == "bet" and len(args) == 2:
         cmd_bet(args[1])
-    elif cmd == "settle" and len(args) >= 3:
+    elif cmd == "settle" and len(args) == 3:
         cmd_settle(args[1], args[2])
     elif cmd in COMMANDS:
         COMMANDS[cmd]()
     else:
-        print(f"未知命令: {cmd}")
+        print(f"未知命令或参数错误: {' '.join(args)}")
         print(__doc__)
         sys.exit(1)

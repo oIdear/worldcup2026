@@ -1,212 +1,101 @@
 """
-竞彩足球胜平负赔率抓取模块
+赛程与赔率模块
 
-策略：
-  1. 优先调用 sporttery.cn JSON API（需要 Cookie，可选）
-  2. 失败则 fallback 到 HTML 页面抓取
-  3. 以上均失败则返回空列表，由调用方决定是否手动录入
+赛程来源：openfootball/worldcup.json（GitHub，免费无需Key，104场全覆盖）
+赔率来源：用户手动从竞彩网录入（sporttery.cn 需登录，无法自动抓取）
+比赛结果：用户手动录入（python main.py settle）
 """
 
-import re
-import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import requests
-from bs4 import BeautifulSoup
-
-from config import SPORTTERY_MATCH_API, SPORTTERY_RESULT_API, SPORTTERY_HEADERS, SPORTTERY_COOKIE
 
 logger = logging.getLogger(__name__)
 
-RESULT_MAP = {
-    "3": "home",   # 胜
-    "1": "draw",   # 平
-    "0": "away",   # 负
-    "win":  "home",
-    "draw": "draw",
-    "lose": "away",
+OPENFOOTBALL_URL = (
+    "https://raw.githubusercontent.com/openfootball/worldcup.json"
+    "/master/2026/worldcup.json"
+)
+
+# UTC+8 北京时间偏移
+CST = timezone(timedelta(hours=8))
+
+# UTC 偏移字符串 → 小时数
+_UTC_OFFSET = {
+    "UTC-6": -6, "UTC-5": -5, "UTC-4": -4, "UTC-3": -3,
+    "UTC+0": 0,  "UTC":   0,
+    "UTC+1": 1,  "UTC+8": 8,
 }
 
 
-def _build_headers() -> dict:
-    h = dict(SPORTTERY_HEADERS)
-    if SPORTTERY_COOKIE:
-        h["Cookie"] = SPORTTERY_COOKIE
-    return h
-
-
-# ── API 模式 ─────────────────────────────────────────────────────────────────
-
-def fetch_matches_api() -> list[dict]:
-    """调用 sporttery.cn 官方 JSON 接口获取近期赛事及赔率。"""
+def fetch_schedule() -> list[dict]:
+    """从 openfootball 拉取完整世界杯赛程（不含赔率）。"""
     try:
-        resp = requests.get(SPORTTERY_MATCH_API, headers=_build_headers(), timeout=10)
+        resp = requests.get(OPENFOOTBALL_URL, timeout=15)
         resp.raise_for_status()
         data = resp.json()
-        return _parse_api_response(data)
+        return _parse_openfootball(data)
     except Exception as e:
-        logger.warning("API fetch failed: %s", e)
+        logger.error("Schedule fetch failed: %s", e)
         return []
 
 
-def _parse_api_response(data: dict) -> list[dict]:
+def _parse_openfootball(data: dict) -> list[dict]:
     matches = []
-    try:
-        items = data["value"]["matchList"]
-    except (KeyError, TypeError):
-        return []
-
-    for item in items:
-        try:
-            odds = item.get("singleOdds") or item.get("spfOdds") or {}
-            matches.append({
-                "match_code":   item["matchCode"],
-                "home_team":    item["homeTeamName"],
-                "away_team":    item["awayTeamName"],
-                "kickoff_time": _parse_time(item.get("matchDate", "")),
-                "round":        item.get("leagueShortName", "世界杯"),
-                "home_odds":    float(odds.get("3", 0) or 0),
-                "draw_odds":    float(odds.get("1", 0) or 0),
-                "away_odds":    float(odds.get("0", 0) or 0),
-            })
-        except Exception as e:
-            logger.debug("Skip item: %s", e)
+    # 数据结构：{"rounds": [{"name": "...", "matches": [...]}]}
+    rounds = data.get("rounds", [])
+    seq = 1
+    for rd in rounds:
+        round_name = rd.get("name", "世界杯")
+        for m in rd.get("matches", []):
+            try:
+                t1 = m.get("team1", {})
+                t2 = m.get("team2", {})
+                home = t1.get("name") or t1 if isinstance(t1, str) else str(t1)
+                away = t2.get("name") or t2 if isinstance(t2, str) else str(t2)
+                kickoff = _to_cst(m.get("date", ""), m.get("time", ""))
+                matches.append({
+                    "match_code":   f"WC2026_{seq:03d}",
+                    "home_team":    home,
+                    "away_team":    away,
+                    "kickoff_time": kickoff,
+                    "round":        round_name,
+                    "home_odds":    0.0,
+                    "draw_odds":    0.0,
+                    "away_odds":    0.0,
+                })
+                seq += 1
+            except Exception as e:
+                logger.debug("Skip match: %s | %s", m, e)
+    logger.info("Parsed %d matches from openfootball", len(matches))
     return matches
 
 
-# ── HTML 抓取模式 ─────────────────────────────────────────────────────────────
+def _to_cst(date_str: str, time_str: str) -> str:
+    """将比赛时间（含 UTC 偏移）转为北京时间（UTC+8）ISO 字符串。"""
+    # time_str 格式例：'13:00 UTC-6'  或  '20:00'
+    offset_hours = 0
+    time_part = time_str.strip()
+    for key, val in _UTC_OFFSET.items():
+        if key in time_part:
+            offset_hours = val
+            time_part = time_part.replace(key, "").strip()
+            break
 
-SPF_HTML_URL = "https://www.sporttery.cn/jc/jsq/zqspf/index.html"
-
-
-def fetch_matches_html() -> list[dict]:
-    """抓取竞彩网胜平负页面的 HTML 获取赔率。"""
-    try:
-        resp = requests.get(SPF_HTML_URL, headers=_build_headers(), timeout=15)
-        resp.raise_for_status()
-        return _parse_spf_html(resp.text)
-    except Exception as e:
-        logger.warning("HTML fetch failed: %s", e)
-        return []
-
-
-def _parse_spf_html(html: str) -> list[dict]:
-    soup = BeautifulSoup(html, "lxml")
-    matches = []
-
-    # 尝试从内嵌 JSON 数据中解析（多数页面将数据放在 window.__INITIAL_STATE__ 或类似变量中）
-    scripts = soup.find_all("script")
-    for script in scripts:
-        text = script.string or ""
-        if "matchCode" in text or "homeTeam" in text:
-            found = _extract_json_from_script(text)
-            if found:
-                return found
-
-    # fallback：解析 HTML 表格
-    rows = soup.select("tr.match-row, tr[data-matchcode]")
-    for row in rows:
+    raw = f"{date_str} {time_part}".strip()
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
         try:
-            cols = row.find_all("td")
-            if len(cols) < 6:
-                continue
-            code = row.get("data-matchcode", cols[0].get_text(strip=True))
-            matches.append({
-                "match_code":   code,
-                "home_team":    cols[2].get_text(strip=True),
-                "away_team":    cols[4].get_text(strip=True),
-                "kickoff_time": _parse_time(cols[1].get_text(strip=True)),
-                "round":        "世界杯",
-                "home_odds":    _safe_float(cols[5].get_text(strip=True)),
-                "draw_odds":    _safe_float(cols[6].get_text(strip=True)),
-                "away_odds":    _safe_float(cols[7].get_text(strip=True)),
-            })
-        except Exception as e:
-            logger.debug("Row parse error: %s", e)
-
-    return matches
-
-
-def _extract_json_from_script(text: str) -> list[dict]:
-    """尝试从 script 文本提取内嵌 JSON 数据。"""
-    pattern = re.search(r'window\.__INITIAL_STATE__\s*=\s*(\{.*?\});', text, re.S)
-    if not pattern:
-        pattern = re.search(r'var\s+matchData\s*=\s*(\[.*?\]);', text, re.S)
-    if not pattern:
-        return []
-    try:
-        raw = json.loads(pattern.group(1))
-        return _parse_api_response(raw) or _parse_api_response({"value": {"matchList": raw}})
-    except Exception:
-        return []
-
-
-# ── 比赛结果查询 ─────────────────────────────────────────────────────────────
-
-def fetch_results_api() -> list[dict]:
-    """获取已结束比赛的开奖结果。返回 [{match_code, result}] 列表。"""
-    try:
-        resp = requests.get(SPORTTERY_RESULT_API, headers=_build_headers(), timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        return _parse_results(data)
-    except Exception as e:
-        logger.warning("Result API failed: %s", e)
-        return []
-
-
-def _parse_results(data: dict) -> list[dict]:
-    results = []
-    try:
-        items = data["value"]["matchList"]
-    except (KeyError, TypeError):
-        return []
-    for item in items:
-        raw = item.get("matchResult") or item.get("result") or ""
-        result = RESULT_MAP.get(str(raw).strip().lower())
-        if result:
-            results.append({
-                "match_code": item["matchCode"],
-                "result": result,
-            })
-    return results
-
-
-# ── 统一入口 ─────────────────────────────────────────────────────────────────
-
-def fetch_matches() -> list[dict]:
-    """尝试 API → HTML 两种方式，返回赛事+赔率列表。"""
-    matches = fetch_matches_api()
-    if not matches:
-        logger.info("Falling back to HTML scrape...")
-        matches = fetch_matches_html()
-    logger.info("Fetched %d matches", len(matches))
-    return matches
-
-
-def fetch_results() -> list[dict]:
-    return fetch_results_api()
-
-
-# ── 工具函数 ─────────────────────────────────────────────────────────────────
-
-def _parse_time(raw: str) -> str:
-    """将各种时间格式统一为 ISO 字符串。"""
-    raw = raw.strip()
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%m-%d %H:%M"):
-        try:
-            dt = datetime.strptime(raw, fmt)
-            if dt.year == 1900:
-                dt = dt.replace(year=datetime.now().year)
-            return dt.strftime("%Y-%m-%d %H:%M:%S")
+            dt_local = datetime.strptime(raw, fmt)
+            dt_utc = dt_local - timedelta(hours=offset_hours)
+            dt_cst = dt_utc + timedelta(hours=8)
+            return dt_cst.strftime("%Y-%m-%d %H:%M:%S")
         except ValueError:
             continue
-    return raw
+    # 解析失败原样返回
+    return f"{date_str} {time_part}"
 
 
-def _safe_float(s: str) -> float:
-    try:
-        return float(s)
-    except (ValueError, TypeError):
-        return 0.0
+# 结果查询保留（手动结算，fetch_results 不再使用）
+def fetch_results() -> list[dict]:
+    return []

@@ -5,13 +5,14 @@
 ## 常用命令
 
 ```bash
-python main.py run         # 启动定时调度器（正式运行）
-python main.py dashboard   # 排行榜网页 http://localhost:5000
-python main.py status      # 命令行查看当前排名
-python main.py sync        # 手动同步一次竞彩赛程+赔率
-python main.py bet <match_code>                    # 手动触发单场下注
-python main.py settle <match_code> <home|draw|away> # 手动结算单场
-python main.py add_match   # 手动录入比赛（竞彩抓取失败时）
+python main.py run                                       # 启动定时调度器（正式运行）
+python main.py dashboard                                 # 排行榜网页 http://localhost:5000
+python main.py sync                                      # 从 openfootball 同步完整赛程
+python main.py matches                                   # 列出所有比赛及赔率状态
+python main.py update_odds <match_code> <主胜> <平局> <客胜>  # 录入竞彩赔率
+python main.py bet <match_code>                          # 手动触发单场 AI 下注
+python main.py settle <match_code> <home|draw|away>      # 手动结算单场
+python main.py status                                    # 命令行查看当前排名
 ```
 
 ## 项目结构
@@ -62,14 +63,21 @@ OPENAI_API_KEY     → ChatGPT
 
 豆包还需配置 `DOUBAO_MODEL_ID`（从火山引擎控制台的"推理接入点"获取）。
 
-## 竞彩赔率抓取说明
+## 数据来源说明
 
-`odds/fetcher.py` 的抓取策略：
-1. 调用 `webapi.sporttery.cn` JSON 接口（需要登录态 Cookie）
-2. 失败则抓取 `www.sporttery.cn` HTML 页面
-3. 以上均失败，使用 `python main.py add_match` 手动录入
+**赛程**：自动从 [openfootball/worldcup.json](https://github.com/openfootball/worldcup.json) 抓取，免费无需 Key，覆盖全部 104 场，时间自动转换为北京时间。
 
-可在 `.env` 中填入 `SPORTTERY_COOKIE`（浏览器登录竞彩网后从 DevTools 复制）来提高抓取成功率。
+**赔率**：手动从竞彩网（sporttery.cn）查看后录入，sporttery.cn 需登录无法自动抓取：
+```
+python main.py update_odds WC2026_001 1.43 4.32 8.11
+```
+
+**比赛结果**：手动录入（比赛结束后）：
+```
+python main.py settle WC2026_001 home
+```
+
+调度器和下注逻辑会自动跳过赔率未录入（为 0）的比赛。
 
 ## 数据库表
 

@@ -10,7 +10,6 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from database import upsert_match, get_unbet_matches_within
-from odds.fetcher import fetch_matches
 from engine.bet_manager import run_bets_for_match
 from engine.settlement import auto_settle
 
@@ -19,9 +18,10 @@ scheduler = BlockingScheduler(timezone="Asia/Shanghai")
 
 
 def job_sync_odds():
-    """同步最新赛程和赔率到数据库。"""
-    logger.info("[SYNC] Fetching matches from sporttery...")
-    matches = fetch_matches()
+    """同步最新赛程到数据库（openfootball，不覆盖已录入的赔率）。"""
+    from odds.fetcher import fetch_schedule
+    logger.info("[SYNC] Fetching schedule from openfootball...")
+    matches = fetch_schedule()
     for m in matches:
         upsert_match(m)
     logger.info("[SYNC] Upserted %d matches.", len(matches))
