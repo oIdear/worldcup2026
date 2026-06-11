@@ -12,7 +12,6 @@ SPORTTERY_COOKIE  = os.getenv("SPORTTERY_COOKIE", "")
 
 INITIAL_BALANCE   = 1000
 MIN_BET           = 10
-MAX_BET_RATIO     = 0.30      # 单场最多押当前余额的30%
 BET_DEADLINE_HOURS = 12       # 比赛前12小时截止下注
 
 DB_PATH = "data/worldcup.db"

@@ -13,7 +13,6 @@ BET_OPTIONS = {"主胜": "home", "平局": "draw", "客胜": "away"}
 def build_prompt(model_name: str, match: dict) -> str:
     balances = get_all_balances()
     balance = next((b["balance"] for b in balances if b["model_name"] == model_name), 0)
-    max_bet = max(10, int(balance * 0.30))
 
     ranked = sorted(balances, key=lambda x: x["balance"], reverse=True)
     ranking_lines = []
@@ -57,7 +56,7 @@ def build_prompt(model_name: str, match: dict) -> str:
 {{"bet": "主胜|平局|客胜", "amount": 整数}}
 
 要求：
-- amount 必须是 {10} 到 {max_bet} 之间的整数
+- amount 必须是 10 到 {int(balance)}（全部余额）之间的整数，由你自由决定
 - bet 必须是"主胜"、"平局"或"客胜"三者之一"""
 
 
@@ -76,8 +75,7 @@ def parse_response(raw: str, balance: float) -> tuple[str, int] | None:
         if not bet_on:
             logger.warning("Unknown bet value: %s", bet_cn)
             return None
-        max_bet = max(10, int(balance * 0.30))
-        amount = max(10, min(amount, max_bet))
+        amount = max(10, min(amount, int(balance)))
         return bet_on, amount
     except (json.JSONDecodeError, ValueError) as e:
         logger.warning("Parse error: %s | raw: %s", e, raw[:200])
