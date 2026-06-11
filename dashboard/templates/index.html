@@ -4,87 +4,142 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>2026 世界杯 AI 押注大战</title>
-<meta http-equiv="refresh" content="60">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #0a0e1a; color: #e8eaf0; min-height: 100vh; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #0a0e1a; color: #e8eaf0; min-height: 100vh; }
 
-  .header { background: linear-gradient(135deg, #1a1f3a 0%, #0d1224 100%); padding: 24px 32px; border-bottom: 1px solid #2a3050; }
-  .header h1 { font-size: 1.8rem; font-weight: 700; color: #fff; }
-  .header h1 span { color: #f5a623; }
-  .header .subtitle { color: #7a8099; font-size: 0.9rem; margin-top: 4px; }
-  .header .meta { display: flex; gap: 24px; margin-top: 12px; }
-  .header .meta span { font-size: 0.85rem; color: #9ba3bf; }
-  .header .meta strong { color: #e8eaf0; }
+/* ── Header ── */
+.header { background: linear-gradient(135deg, #1a1f3a 0%, #0d1224 100%); padding: 20px 32px; border-bottom: 1px solid #2a3050; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.header h1 { font-size: 1.6rem; font-weight: 700; color: #fff; }
+.header h1 span { color: #f5a623; }
+.header .meta { display: flex; gap: 20px; font-size: 0.85rem; color: #9ba3bf; }
+.header .meta strong { color: #e8eaf0; }
 
-  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+/* ── Tabs ── */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid #1e2640; background: #0d1224; padding: 0 32px; }
+.tab-btn { padding: 14px 24px; font-size: 0.9rem; font-weight: 600; color: #7a8099; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.tab-btn:hover { color: #c0c6d8; }
+.tab-btn.active { color: #f5a623; border-bottom-color: #f5a623; }
 
-  /* 排行榜 */
-  .leaderboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 40px; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
 
-  .card { background: #12172e; border: 1px solid #1e2640; border-radius: 12px; padding: 20px; position: relative; overflow: hidden; transition: transform 0.2s; }
-  .card:hover { transform: translateY(-2px); }
-  .card.rank-1 { border-color: #f5a623; background: linear-gradient(135deg, #1a1505 0%, #12172e 60%); }
-  .card.rank-2 { border-color: #8c9db5; }
-  .card.rank-3 { border-color: #c87532; }
-  .card.eliminated { opacity: 0.45; filter: grayscale(0.6); }
+.container { max-width: 1300px; margin: 0 auto; padding: 28px 24px; }
 
-  .rank-badge { position: absolute; top: 12px; right: 12px; font-size: 1.4rem; font-weight: 900; opacity: 0.18; }
-  .card.rank-1 .rank-badge { color: #f5a623; opacity: 0.5; }
+/* ── Leaderboard cards ── */
+.leaderboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-bottom: 36px; }
+.card { background: #12172e; border: 1px solid #1e2640; border-radius: 12px; padding: 20px; position: relative; overflow: hidden; }
+.card.rank-1 { border-color: #f5a623; background: linear-gradient(135deg, #1a1505 0%, #12172e 60%); }
+.card.rank-2 { border-color: #8c9db5; }
+.card.rank-3 { border-color: #c87532; }
+.card.eliminated { opacity: 0.45; filter: grayscale(0.6); }
+.rank-badge { position: absolute; top: 12px; right: 14px; font-size: 1.3rem; font-weight: 900; opacity: 0.15; }
+.card.rank-1 .rank-badge { color: #f5a623; opacity: 0.45; }
+.model-name { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
+.balance { font-size: 1.9rem; font-weight: 800; margin-bottom: 10px; }
+.card.rank-1 .balance { color: #f5a623; }
+.card.eliminated .balance { color: #5a5f70; }
+.stats-row { display: flex; gap: 14px; font-size: 0.8rem; color: #7a8099; }
+.stats-row .stat strong { color: #c0c6d8; font-size: 0.92rem; display: block; }
+.profit { font-size: 0.85rem; font-weight: 600; margin-top: 10px; }
+.profit.pos { color: #4caf85; } .profit.neg { color: #e05050; } .profit.zero { color: #7a8099; }
+.win-bar { width: 100%; height: 4px; background: #1e2640; border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.win-fill { height: 100%; background: #4caf85; border-radius: 2px; }
+.elim-badge { display: inline-block; background: #3a1515; color: #e05050; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-top: 8px; }
 
-  .model-name { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
-  .balance { font-size: 2rem; font-weight: 800; margin-bottom: 12px; }
-  .card.rank-1 .balance { color: #f5a623; }
-  .card.eliminated .balance { color: #5a5f70; }
+/* ── Section title ── */
+.section-title { font-size: 1rem; font-weight: 700; color: #c0c6d8; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #1e2640; }
 
-  .stats-row { display: flex; gap: 16px; font-size: 0.8rem; color: #7a8099; }
-  .stats-row .stat { display: flex; flex-direction: column; }
-  .stats-row .stat strong { color: #c0c6d8; font-size: 0.95rem; }
+/* ── Recent bets table ── */
+table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+th { text-align: left; color: #7a8099; font-weight: 600; padding: 8px 12px; border-bottom: 1px solid #1e2640; }
+td { padding: 10px 12px; border-bottom: 1px solid #141928; }
+tr:hover td { background: #141928; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 600; }
+.tag-home { background: #1a2a1a; color: #4caf85; }
+.tag-draw { background: #1a1a2a; color: #7ba8e0; }
+.tag-away { background: #2a1a1a; color: #e07a7a; }
+.won  { color: #4caf85; font-weight: 600; }
+.lost { color: #e05050; }
+.pending-text { color: #7a8099; }
 
-  .profit { font-size: 0.85rem; font-weight: 600; margin-top: 10px; }
-  .profit.pos { color: #4caf85; }
-  .profit.neg { color: #e05050; }
-  .profit.zero { color: #7a8099; }
+/* ── Match manager ── */
+.filter-bar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.filter-btn { padding: 7px 16px; border-radius: 20px; border: 1px solid #2a3050; background: #12172e; color: #9ba3bf; font-size: 0.83rem; cursor: pointer; transition: all 0.2s; }
+.filter-btn:hover { border-color: #f5a623; color: #f5a623; }
+.filter-btn.active { background: #f5a623; border-color: #f5a623; color: #0a0e1a; font-weight: 700; }
 
-  .eliminated-badge { display: inline-block; background: #3a1515; color: #e05050; font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-top: 8px; }
+.match-list { display: flex; flex-direction: column; gap: 10px; }
 
-  /* 最近下注记录 */
-  .section-title { font-size: 1.1rem; font-weight: 700; color: #c0c6d8; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #1e2640; }
+.match-card { background: #12172e; border: 1px solid #1e2640; border-radius: 10px; padding: 16px 20px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+.match-card.has-odds { border-left: 3px solid #4caf85; }
+.match-card.no-odds  { border-left: 3px solid #e0a050; }
+.match-card.finished { border-left: 3px solid #4a5268; opacity: 0.7; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  th { text-align: left; color: #7a8099; font-weight: 600; padding: 8px 12px; border-bottom: 1px solid #1e2640; }
-  td { padding: 10px 12px; border-bottom: 1px solid #141928; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #141928; }
+.match-info { display: flex; flex-direction: column; gap: 4px; }
+.match-teams { font-size: 1rem; font-weight: 700; color: #e8eaf0; }
+.match-teams .vs { color: #4a5268; margin: 0 8px; font-weight: 400; }
+.match-meta { font-size: 0.8rem; color: #7a8099; display: flex; gap: 16px; }
+.match-meta span strong { color: #9ba3bf; }
+.odds-display { font-size: 0.82rem; color: #9ba3bf; margin-top: 4px; }
+.odds-display span { margin-right: 12px; }
+.odds-display .lbl { color: #5a6080; margin-right: 3px; }
 
-  .bet-won  { color: #4caf85; font-weight: 600; }
-  .bet-lost { color: #e05050; }
-  .bet-pending { color: #7a8099; }
-  .bet-home { background: #1a2a1a; color: #4caf85; }
-  .bet-draw { background: #1a1a2a; color: #7ba8e0; }
-  .bet-away { background: #2a1a1a; color: #e07a7a; }
-  .bet-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+.match-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; min-width: 260px; }
 
-  .win-rate-bar { width: 100%; height: 4px; background: #1e2640; border-radius: 2px; margin-top: 8px; overflow: hidden; }
-  .win-rate-fill { height: 100%; background: #4caf85; border-radius: 2px; }
+/* odds form */
+.odds-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.odds-form input { width: 70px; padding: 6px 8px; background: #0d1224; border: 1px solid #2a3050; border-radius: 6px; color: #e8eaf0; font-size: 0.82rem; text-align: center; }
+.odds-form input:focus { outline: none; border-color: #f5a623; }
+.odds-form input::placeholder { color: #4a5268; }
+
+/* buttons */
+.btn { padding: 7px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 600; transition: opacity 0.2s; }
+.btn:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary   { background: #f5a623; color: #0a0e1a; }
+.btn-success   { background: #2a6e4e; color: #7fffb8; }
+.btn-danger    { background: #6e2a2a; color: #ffb8b8; }
+.btn-ghost     { background: #1e2640; color: #9ba3bf; }
+.btn-sm        { padding: 5px 12px; font-size: 0.78rem; }
+
+/* settle panel */
+.settle-panel { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.result-label { font-size: 0.78rem; color: #7a8099; }
+
+/* toast */
+#toast { position: fixed; bottom: 28px; right: 28px; background: #1e2640; border: 1px solid #3a4060; border-radius: 10px; padding: 12px 20px; font-size: 0.88rem; color: #e8eaf0; max-width: 320px; opacity: 0; transform: translateY(12px); transition: all 0.3s; z-index: 999; pointer-events: none; }
+#toast.show { opacity: 1; transform: translateY(0); }
+#toast.ok  { border-color: #4caf85; color: #4caf85; }
+#toast.err { border-color: #e05050; color: #e05050; }
+
+.loading { color: #7a8099; padding: 32px; text-align: center; font-size: 0.9rem; }
+.empty   { color: #4a5268; padding: 32px; text-align: center; font-size: 0.9rem; }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>⚽ 2026 世界杯 <span>AI 押注大战</span></h1>
-  <div class="subtitle">Claude · DeepSeek · 豆包 · ChatGPT — 谁是最强足球分析师？</div>
+  <div>
+    <h1>⚽ 2026 世界杯 <span>AI 押注大战</span></h1>
+    <div style="color:#7a8099;font-size:0.82rem;margin-top:4px">Claude · DeepSeek · 豆包 · ChatGPT</div>
+  </div>
   <div class="meta">
     <span>总场次 <strong>{{ total_matches }}</strong></span>
     <span>已结算 <strong>{{ finished_matches }}</strong></span>
     <span>待开赛 <strong>{{ pending_matches }}</strong></span>
-    <span style="margin-left: auto; color: #4a5268;">每60秒自动刷新</span>
   </div>
 </div>
 
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('leaderboard', this)">排行榜</button>
+  <button class="tab-btn" onclick="switchTab('matches', this)">比赛管理</button>
+</div>
+
+<!-- ══ 排行榜 Tab ══════════════════════════════════════════════════════════ -->
+<div id="tab-leaderboard" class="tab-pane active">
 <div class="container">
 
-  <!-- 排行榜 -->
   <div class="leaderboard">
     {% for b in balances %}
     {% set rank = loop.index %}
@@ -92,72 +147,45 @@
     <div class="card {% if rank <= 3 %}rank-{{ rank }}{% endif %} {% if b.is_eliminated %}eliminated{% endif %}">
       <div class="rank-badge">#{{ rank }}</div>
       <div class="model-name">{{ b.model_name }}</div>
-      <div class="balance">{{ b.balance | int }} <small style="font-size:0.9rem;color:#7a8099">虚拟币</small></div>
-
+      <div class="balance">{{ b.balance | int }} <small style="font-size:0.85rem;color:#7a8099">虚拟币</small></div>
       <div class="stats-row">
         <div class="stat"><strong>{{ b.total_bets }}</strong>下注</div>
         <div class="stat"><strong>{{ b.wins }}</strong>胜</div>
         <div class="stat"><strong>{{ b.losses }}</strong>负</div>
         <div class="stat"><strong>{{ b.max_consecutive_wins }}</strong>连胜</div>
       </div>
-
       {% if b.total_bets > 0 %}
-      <div class="win-rate-bar">
-        <div class="win-rate-fill" style="width: {{ (b.wins / b.total_bets * 100) | int }}%"></div>
-      </div>
+      <div class="win-bar"><div class="win-fill" style="width:{{ (b.wins / b.total_bets * 100)|int }}%"></div></div>
       {% endif %}
-
       <div class="profit {{ 'pos' if profit > 0 else ('neg' if profit < 0 else 'zero') }}">
-        {{ '+' if profit > 0 else '' }}{{ profit | int }} 虚拟币
-        （{{ '+' if profit > 0 else '' }}{{ ((profit / 1000) * 100) | round(1) }}%）
+        {{ '+' if profit > 0 else '' }}{{ profit | int }} 虚拟币（{{ '+' if profit > 0 else '' }}{{ ((profit/1000)*100)|round(1) }}%）
       </div>
-
-      {% if b.is_eliminated %}
-      <div class="eliminated-badge">已出局</div>
-      {% endif %}
+      {% if b.is_eliminated %}<div class="elim-badge">已出局</div>{% endif %}
     </div>
     {% endfor %}
   </div>
 
-  <!-- 最近下注记录 -->
   <div class="section-title">最近下注记录</div>
   <table>
-    <thead>
-      <tr>
-        <th>模型</th>
-        <th>比赛</th>
-        <th>押注</th>
-        <th>金额</th>
-        <th>赔率</th>
-        <th>盈亏</th>
-      </tr>
-    </thead>
+    <thead><tr><th>模型</th><th>比赛</th><th>押注</th><th>金额</th><th>赔率</th><th>盈亏</th></tr></thead>
     <tbody>
       {% for b in recent_bets %}
       <tr>
         <td>{{ b.model_name }}</td>
         <td style="color:#c0c6d8">{{ b.home_team }} vs {{ b.away_team }}</td>
         <td>
-          {% if b.bet_on == 'home' %}
-          <span class="bet-tag bet-home">主胜</span>
-          {% elif b.bet_on == 'draw' %}
-          <span class="bet-tag bet-draw">平局</span>
-          {% else %}
-          <span class="bet-tag bet-away">客胜</span>
-          {% endif %}
+          <span class="tag tag-{{ b.bet_on }}">
+            {{ '主胜' if b.bet_on=='home' else ('平局' if b.bet_on=='draw' else '客胜') }}
+          </span>
         </td>
         <td>{{ b.amount }}</td>
         <td style="color:#9ba3bf">{{ b.odds_at_bet }}</td>
         <td>
           {% if b.is_settled %}
-            {% if b.profit_loss > 0 %}
-            <span class="bet-won">+{{ b.profit_loss | round(1) }}</span>
-            {% else %}
-            <span class="bet-lost">{{ b.profit_loss | round(1) }}</span>
-            {% endif %}
-          {% else %}
-          <span class="bet-pending">待结算</span>
-          {% endif %}
+            <span class="{{ 'won' if b.profit_loss > 0 else 'lost' }}">
+              {{ '+' if b.profit_loss > 0 else '' }}{{ b.profit_loss | round(1) }}
+            </span>
+          {% else %}<span class="pending-text">待结算</span>{% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -165,5 +193,176 @@
   </table>
 
 </div>
+</div>
+
+<!-- ══ 比赛管理 Tab ════════════════════════════════════════════════════════ -->
+<div id="tab-matches" class="tab-pane">
+<div class="container">
+
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="loadMatches('all', this)">全部</button>
+    <button class="filter-btn" onclick="loadMatches('no_odds', this)">待录入赔率</button>
+    <button class="filter-btn" onclick="loadMatches('pending', this)">待结算</button>
+    <button class="filter-btn" onclick="loadMatches('finished', this)">已结束</button>
+  </div>
+
+  <div id="match-list" class="match-list">
+    <div class="loading">加载中…</div>
+  </div>
+
+</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Tab 切换 ──────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'matches') loadMatches(currentFilter);
+}
+
+let currentFilter = 'all';
+
+// ── Toast 通知 ─────────────────────────────────────────────────────────────
+function showToast(msg, ok = true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + (ok ? 'ok' : 'err');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = ''; }, 3000);
+}
+
+// ── 加载比赛列表 ───────────────────────────────────────────────────────────
+async function loadMatches(filter, btn) {
+  currentFilter = filter;
+  if (btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  const list = document.getElementById('match-list');
+  list.innerHTML = '<div class="loading">加载中…</div>';
+
+  const resp = await fetch('/api/matches?status=' + filter);
+  const matches = await resp.json();
+
+  if (!matches.length) {
+    list.innerHTML = '<div class="empty">暂无比赛</div>';
+    return;
+  }
+  list.innerHTML = matches.map(renderMatchCard).join('');
+}
+
+// ── 渲染单张比赛卡片 ──────────────────────────────────────────────────────
+function renderMatchCard(m) {
+  const hasOdds = m.home_odds > 0;
+  const finished = m.status === 'finished';
+  const cls = finished ? 'finished' : (hasOdds ? 'has-odds' : 'no-odds');
+
+  const resultLabel = { home: '主队胜', draw: '平局', away: '客队胜' };
+
+  let oddsHtml = '';
+  if (hasOdds) {
+    oddsHtml = `<div class="odds-display">
+      <span><span class="lbl">主胜</span>${m.home_odds}</span>
+      <span><span class="lbl">平局</span>${m.draw_odds}</span>
+      <span><span class="lbl">客胜</span>${m.away_odds}</span>
+    </div>`;
+  }
+
+  let actionsHtml = '';
+  if (finished) {
+    const rl = resultLabel[m.result] || m.result;
+    const colors = { home: '#4caf85', draw: '#7ba8e0', away: '#e07a7a' };
+    actionsHtml = `<span style="font-size:0.85rem;font-weight:700;color:${colors[m.result] || '#9ba3bf'}">✓ ${rl}</span>`;
+  } else if (!hasOdds) {
+    actionsHtml = `
+      <div class="odds-form">
+        <input type="number" step="0.01" min="1.01" placeholder="主胜" id="h_${m.match_code}">
+        <input type="number" step="0.01" min="1.01" placeholder="平局" id="d_${m.match_code}">
+        <input type="number" step="0.01" min="1.01" placeholder="客胜" id="a_${m.match_code}">
+        <button class="btn btn-primary btn-sm" onclick="submitOdds('${m.match_code}')">录入</button>
+      </div>`;
+  } else {
+    // 已录入赔率，显示结算按钮
+    actionsHtml = `
+      <div class="settle-panel">
+        <span class="result-label">结算结果：</span>
+        <button class="btn btn-success btn-sm" onclick="settle('${m.match_code}','home')">主胜</button>
+        <button class="btn btn-ghost btn-sm"   onclick="settle('${m.match_code}','draw')">平局</button>
+        <button class="btn btn-danger btn-sm"  onclick="settle('${m.match_code}','away')">客胜</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="triggerBet('${m.match_code}')" style="margin-top:4px">▶ 触发 AI 下注</button>`;
+  }
+
+  return `
+  <div class="match-card ${cls}" id="card-${m.match_code}">
+    <div class="match-info">
+      <div class="match-teams">${m.home_team} <span class="vs">vs</span> ${m.away_team}</div>
+      <div class="match-meta">
+        <span><strong>${m.match_code}</strong></span>
+        <span>${m.kickoff_time}</span>
+        <span>${m.round || ''}</span>
+      </div>
+      ${oddsHtml}
+    </div>
+    <div class="match-actions">${actionsHtml}</div>
+  </div>`;
+}
+
+// ── 录入赔率 ───────────────────────────────────────────────────────────────
+async function submitOdds(code) {
+  const h = parseFloat(document.getElementById('h_' + code)?.value);
+  const d = parseFloat(document.getElementById('d_' + code)?.value);
+  const a = parseFloat(document.getElementById('a_' + code)?.value);
+
+  if (!h || !d || !a) { showToast('请填写全部三项赔率', false); return; }
+
+  const resp = await fetch('/api/update_odds', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ match_code: code, home_odds: h, draw_odds: d, away_odds: a }),
+  });
+  const data = await resp.json();
+  showToast(data.message || data.error, data.ok);
+  if (data.ok) loadMatches(currentFilter);
+}
+
+// ── 结算 ──────────────────────────────────────────────────────────────────
+async function settle(code, result) {
+  const labels = { home: '主队胜', draw: '平局', away: '客队胜' };
+  if (!confirm(`确认结算为「${labels[result]}」？`)) return;
+
+  const resp = await fetch('/api/settle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ match_code: code, result }),
+  });
+  const data = await resp.json();
+  showToast(data.message || data.error, data.ok);
+  if (data.ok) loadMatches(currentFilter);
+}
+
+// ── 触发 AI 下注 ──────────────────────────────────────────────────────────
+async function triggerBet(code) {
+  const resp = await fetch('/api/bet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ match_code: code }),
+  });
+  const data = await resp.json();
+  showToast(data.message || data.error, data.ok);
+}
+
+// ── 排行榜自动刷新 ────────────────────────────────────────────────────────
+setInterval(() => {
+  if (document.getElementById('tab-leaderboard').classList.contains('active')) {
+    location.reload();
+  }
+}, 60000);
+</script>
 </body>
 </html>

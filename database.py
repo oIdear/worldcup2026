@@ -124,10 +124,10 @@ def upsert_match(match: dict):
             VALUES (:match_code, :home_team, :away_team, :kickoff_time, :round,
                     :home_odds, :draw_odds, :away_odds)
             ON CONFLICT(match_code) DO UPDATE SET
-                home_odds    = excluded.home_odds,
-                draw_odds    = excluded.draw_odds,
-                away_odds    = excluded.away_odds,
-                kickoff_time = excluded.kickoff_time
+                kickoff_time = excluded.kickoff_time,
+                home_odds = CASE WHEN excluded.home_odds > 0 THEN excluded.home_odds ELSE matches.home_odds END,
+                draw_odds = CASE WHEN excluded.draw_odds > 0 THEN excluded.draw_odds ELSE matches.draw_odds END,
+                away_odds = CASE WHEN excluded.away_odds > 0 THEN excluded.away_odds ELSE matches.away_odds END
         """, match)
         conn.commit()
 
